@@ -1,13 +1,21 @@
+import os
 import re
-import requests
+import tempfile
+
 import streamlit as st
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+
+from core.rag import DocumentRAG
 
 
 # =========================================================
 # CONFIGURATION
 # =========================================================
 
-API_URL = "http://127.0.0.1:8000"
+load_dotenv()
+
+rag = DocumentRAG()
 
 
 # =========================================================
@@ -28,159 +36,151 @@ st.set_page_config(
 
 st.markdown(
     """
-<style>
+    <style>
 
-.stApp {
-    background: #f6f8fc;
-}
+    .stApp {
+        background: #f6f8fc;
+    }
 
-.main .block-container {
-    max-width: 1200px;
-    padding-top: 2rem;
-    padding-bottom: 3rem;
-}
+    .main .block-container {
+        max-width: 1200px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
 
+    /* ================= SIDEBAR ================= */
 
-/* ================= SIDEBAR ================= */
+    section[data-testid="stSidebar"] {
+        background: #ffffff;
+        border-right: 1px solid #e5e7eb;
+    }
 
-section[data-testid="stSidebar"] {
-    background: #ffffff;
-    border-right: 1px solid #e5e7eb;
-}
+    section[data-testid="stSidebar"] .block-container {
+        padding: 2rem 1.2rem;
+    }
 
-section[data-testid="stSidebar"] .block-container {
-    padding: 2rem 1.2rem;
-}
+    /* ================= HERO ================= */
 
+    .hero {
+        background: linear-gradient(135deg, #ffffff, #eef4ff);
+        border: 1px solid #dfe7f2;
+        border-radius: 18px;
+        padding: 30px 32px;
+        margin-bottom: 28px;
+        box-shadow: 0 5px 20px rgba(15, 23, 42, 0.05);
+    }
 
-/* ================= HERO ================= */
+    .hero-title {
+        font-size: 32px;
+        font-weight: 750;
+        color: #111827;
+        margin-bottom: 8px;
+    }
 
-.hero {
-    background: linear-gradient(135deg, #ffffff, #eef4ff);
-    border: 1px solid #dfe7f2;
-    border-radius: 18px;
-    padding: 30px 32px;
-    margin-bottom: 28px;
-    box-shadow: 0 5px 20px rgba(15, 23, 42, 0.05);
-}
+    .hero-subtitle {
+        font-size: 15px;
+        color: #64748b;
+        line-height: 1.6;
+    }
 
-.hero-title {
-    font-size: 32px;
-    font-weight: 750;
-    color: #111827;
-    margin-bottom: 8px;
-}
+    /* ================= SECTION ================= */
 
-.hero-subtitle {
-    font-size: 15px;
-    color: #64748b;
-    line-height: 1.6;
-}
+    .section-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #111827;
+        margin-top: 20px;
+        margin-bottom: 5px;
+    }
 
+    .section-description {
+        font-size: 14px;
+        color: #64748b;
+        margin-bottom: 18px;
+    }
 
-/* ================= SECTION ================= */
+    /* ================= CARDS ================= */
 
-.section-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #111827;
-    margin-top: 20px;
-    margin-bottom: 5px;
-}
+    .info-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
 
-.section-description {
-    font-size: 14px;
-    color: #64748b;
-    margin-bottom: 18px;
-}
+    .answer-card {
+        background: #ffffff;
+        border: 1px solid #dbe3ef;
+        border-radius: 16px;
+        padding: 24px 26px;
+        margin-top: 10px;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+    }
 
+    .answer-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 10px;
+    }
 
-/* ================= CARDS ================= */
+    /* ================= RERANK SCORE ================= */
 
-.info-card {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    padding: 18px 20px;
-    margin-bottom: 12px;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
+    .score-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-top: 12px;
+    }
 
-.answer-card {
-    background: #ffffff;
-    border: 1px solid #dbe3ef;
-    border-radius: 16px;
-    padding: 24px 26px;
-    margin-top: 10px;
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
-}
+    .score-label {
+        font-size: 11px;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
 
-.answer-label {
-    font-size: 12px;
-    font-weight: 700;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 10px;
-}
+    .score-value {
+        font-size: 16px;
+        font-weight: 700;
+        color: #111827;
+    }
 
+    /* ================= BUTTONS ================= */
 
-/* ================= RERANK SCORE ================= */
+    .stButton > button {
+        border-radius: 9px;
+        font-weight: 650;
+        min-height: 42px;
+    }
 
-.score-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin-top: 12px;
-}
+    /* ================= METRICS ================= */
 
-.score-label {
-    font-size: 11px;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+    div[data-testid="stMetric"] {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 14px;
+    }
 
-.score-value {
-    font-size: 16px;
-    font-weight: 700;
-    color: #111827;
-}
+    /* ================= FOOTER ================= */
 
+    .footer {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 12px;
+        margin-top: 45px;
+        padding-top: 20px;
+        border-top: 1px solid #e5e7eb;
+    }
 
-/* ================= BUTTONS ================= */
-
-.stButton > button {
-    border-radius: 9px;
-    font-weight: 650;
-    min-height: 42px;
-}
-
-
-/* ================= METRICS ================= */
-
-div[data-testid="stMetric"] {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 14px;
-}
-
-
-/* ================= FOOTER ================= */
-
-.footer {
-    text-align: center;
-    color: #94a3b8;
-    font-size: 12px;
-    margin-top: 45px;
-    padding-top: 20px;
-    border-top: 1px solid #e5e7eb;
-}
-
-</style>
-""",
+    </style>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -192,11 +192,7 @@ div[data-testid="stMetric"] {
 def clean_duplicate_citations(text: str) -> str:
     """
     Removes accidental consecutive duplicate evidence
-    citations such as:
-
-        [E1] [E1]
-
-    while preserving normal citations.
+    citations such as [E1] [E1].
     """
 
     if not text:
@@ -209,15 +205,295 @@ def clean_duplicate_citations(text: str) -> str:
     previous = None
 
     while previous != text:
-
         previous = text
-
-        text = pattern.sub(
-            r"[\1]",
-            text
-        )
+        text = pattern.sub(r"[\1]", text)
 
     return text
+
+
+def build_context(evidence: list[dict]) -> str:
+    """
+    Convert retrieved evidence into the context supplied
+    to the LLM.
+    """
+
+    context_blocks = []
+
+    for item in evidence:
+
+        evidence_id = item.get(
+            "evidence_id",
+            "UNKNOWN",
+        )
+
+        source = item.get(
+            "source",
+            "unknown",
+        )
+
+        page = item.get(
+            "page",
+            "unknown",
+        )
+
+        extraction_method = item.get(
+            "extraction_method",
+            "unknown",
+        )
+
+        text = item.get(
+            "text",
+            "",
+        )
+
+        rerank_score = item.get(
+            "rerank_score",
+            "unknown",
+        )
+
+        context_blocks.append(
+            f"""
+[{evidence_id}]
+Source: {source}
+Page: {page}
+Extraction method: {extraction_method}
+Rerank score: {rerank_score}
+
+Evidence:
+{text}
+""".strip()
+        )
+
+    return "\n\n".join(context_blocks)
+
+
+def build_citations(evidence: list[dict]) -> list[dict]:
+    """
+    Build citation metadata for the UI.
+    """
+
+    citations = []
+
+    for item in evidence:
+
+        citations.append(
+            {
+                "evidence_id": item.get(
+                    "evidence_id"
+                ),
+                "source": item.get(
+                    "source"
+                ),
+                "page": item.get(
+                    "page"
+                ),
+                "citation": item.get(
+                    "citation"
+                ),
+                "extraction_method": item.get(
+                    "extraction_method"
+                ),
+                "rerank_score": item.get(
+                    "rerank_score"
+                ),
+            }
+        )
+
+    return citations
+
+
+def generate_answer(
+    question: str,
+    context: str,
+    conflict_ledger: dict,
+) -> str:
+    """
+    Generate an evidence-grounded answer using Groq.
+    """
+
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        return (
+            "GROQ_API_KEY is not configured. "
+            "Please configure the API key in the .env file."
+        )
+
+    llm = ChatGroq(
+        model="openai/gpt-oss-20b",
+        temperature=0,
+        groq_api_key=api_key,
+    )
+
+    system_prompt = """
+You are an evidence-grounded document information assistant.
+
+Your task is to answer questions using ONLY the
+document evidence supplied to you.
+
+You are not allowed to invent information.
+
+=========================================================
+GROUNDING RULES
+=========================================================
+
+1. Use ONLY the supplied document evidence.
+
+2. Do NOT use outside knowledge to fill missing
+   document information.
+
+3. Do NOT invent:
+   - facts
+   - numbers
+   - dates
+   - names
+   - measurements
+   - results
+   - diagnoses
+   - conclusions
+   - procedures
+   - methodologies
+
+4. If the retrieved evidence does not contain enough
+   information to answer the question, explicitly state:
+
+   "The available documents do not provide enough
+   information."
+
+5. Every important factual statement should reference
+   the relevant evidence ID.
+
+   Example:
+   "The model used Adam as the optimizer [E2]."
+
+6. Clearly distinguish documented facts from interpretation.
+
+7. Do not treat your own inference as a documented fact.
+
+=========================================================
+DOCUMENT FILTERING
+=========================================================
+
+Use ONLY the evidence supplied in the current context.
+
+Do not introduce information from documents that are
+not represented in the supplied evidence.
+
+=========================================================
+MULTI-DOCUMENT RULES
+=========================================================
+
+1. Multiple documents may be supplied.
+
+2. Identify the source document relevant to the question.
+
+3. Do not mix information from unrelated documents.
+
+4. If multiple documents contain relevant information,
+   clearly identify which source supports each statement.
+
+5. If documents provide different values for the same
+   property and the conflict ledger reports a potential
+   inconsistency:
+
+   - Do NOT choose one value.
+   - Do NOT silently merge the values.
+   - Report the difference.
+   - Cite the relevant evidence IDs.
+   - State that document/source review is required.
+
+=========================================================
+CONFLICT HANDLING
+=========================================================
+
+A conflict detected by the system is a POTENTIAL
+inconsistency, not proof that the document is wrong.
+
+Example:
+
+"Different accuracy values were detected in the
+retrieved evidence [E1, E4]. The system cannot
+determine which value is authoritative."
+
+=========================================================
+ANSWER STYLE
+=========================================================
+
+Keep answers concise and evidence-grounded.
+
+Prefer:
+Answer
+Evidence / explanation
+Sources
+
+Do not add unnecessary speculation.
+"""
+
+    user_prompt = f"""
+QUESTION
+========
+
+{question}
+
+
+RETRIEVED DOCUMENT EVIDENCE
+===========================
+
+{context}
+
+
+CONFLICT LEDGER
+===============
+
+{conflict_ledger}
+
+
+TASK
+====
+
+Answer the question using ONLY the retrieved document
+evidence.
+
+Use evidence IDs such as [E1], [E2], etc.
+
+If the evidence is insufficient, say:
+
+"The available documents do not provide enough
+information."
+
+If multiple potentially conflicting values are present,
+report the conflict and identify the relevant evidence IDs.
+
+Do not invent information.
+"""
+
+    try:
+
+        response = llm.invoke(
+            [
+                (
+                    "system",
+                    system_prompt,
+                ),
+                (
+                    "human",
+                    user_prompt,
+                ),
+            ]
+        )
+
+        return str(
+            response.content
+        ).strip()
+
+    except Exception as exc:
+
+        return (
+            "The document evidence was retrieved "
+            "successfully, but answer generation "
+            "could not be completed: "
+            f"{exc}"
+        )
 
 
 # =========================================================
@@ -225,13 +501,18 @@ def clean_duplicate_citations(text: str) -> str:
 # =========================================================
 
 st.markdown(
-    """<div class="hero">
-<div class="hero-title">📄 AI Document Intelligence Copilot</div>
-<div class="hero-subtitle">
-Multi-document RAG platform for evidence-grounded question answering,
-semantic document retrieval, source citations and document analysis.
-</div>
-</div>""",
+    """
+    <div class="hero">
+        <div class="hero-title">
+            📄 AI Document Intelligence Copilot
+        </div>
+        <div class="hero-subtitle">
+            Multi-document RAG platform for evidence-grounded
+            question answering, semantic document retrieval,
+            source citations and document analysis.
+        </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -243,21 +524,29 @@ semantic document retrieval, source citations and document analysis.
 with st.sidebar:
 
     st.markdown(
-        """<div style="
-        font-size:22px;
-        font-weight:750;
-        color:#111827;
-        margin-bottom:5px;
-        ">Document Workspace</div>""",
+        """
+        <div style="
+            font-size:22px;
+            font-weight:750;
+            color:#111827;
+            margin-bottom:5px;
+        ">
+            Document Workspace
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
     st.markdown(
-        """<div style="
-        font-size:13px;
-        color:#64748b;
-        margin-bottom:20px;
-        ">Upload and analyze your PDF documents</div>""",
+        """
+        <div style="
+            font-size:13px;
+            color:#64748b;
+            margin-bottom:20px;
+        ">
+            Upload and analyze your PDF documents
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -271,28 +560,36 @@ with st.sidebar:
     if uploaded_files:
 
         st.markdown(
-            f"""<div style="
-            margin-top:10px;
-            margin-bottom:12px;
-            font-size:13px;
-            font-weight:650;
-            color:#475569;
-            ">{len(uploaded_files)} document(s) selected</div>""",
+            f"""
+            <div style="
+                margin-top:10px;
+                margin-bottom:12px;
+                font-size:13px;
+                font-weight:650;
+                color:#475569;
+            ">
+                {len(uploaded_files)} document(s) selected
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
         for file in uploaded_files:
 
             st.markdown(
-                f"""<div style="
-                background:#f8fafc;
-                border:1px solid #e2e8f0;
-                border-radius:9px;
-                padding:9px 11px;
-                margin-bottom:7px;
-                font-size:13px;
-                color:#334155;
-                ">📄 {file.name}</div>""",
+                f"""
+                <div style="
+                    background:#f8fafc;
+                    border:1px solid #e2e8f0;
+                    border-radius:9px;
+                    padding:9px 11px;
+                    margin-bottom:7px;
+                    font-size:13px;
+                    color:#334155;
+                ">
+                    📄 {file.name}
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
 
@@ -316,67 +613,99 @@ if process_documents:
 
     else:
 
-        files = []
-
-        for file in uploaded_files:
-
-            files.append(
-                (
-                    "files",
-                    (
-                        file.name,
-                        file.getvalue(),
-                        "application/pdf",
-                    ),
-                )
-            )
-
         with st.spinner(
             "Processing documents and building the knowledge base..."
         ):
 
-            try:
+            results = []
 
-                response = requests.post(
-                    f"{API_URL}/documents",
-                    files=files,
-                    timeout=300,
+            for uploaded_file in uploaded_files:
+
+                temp_path = None
+
+                try:
+
+                    with tempfile.NamedTemporaryFile(
+                        delete=False,
+                        suffix=".pdf",
+                    ) as temp_file:
+
+                        temp_file.write(
+                            uploaded_file.getvalue()
+                        )
+
+                        temp_path = temp_file.name
+
+                    chunks_added = rag.ingest_pdf(
+                        temp_path,
+                        source_name=uploaded_file.name,
+                    )
+
+                    results.append(
+                        {
+                            "filename": uploaded_file.name,
+                            "status": "success",
+                            "chunks_added": chunks_added,
+                        }
+                    )
+
+                except Exception as exc:
+
+                    results.append(
+                        {
+                            "filename": uploaded_file.name,
+                            "status": "failed",
+                            "error": str(exc),
+                        }
+                    )
+
+                finally:
+
+                    if temp_path:
+
+                        try:
+                            os.remove(temp_path)
+                        except OSError:
+                            pass
+
+            successful_files = sum(
+                1
+                for item in results
+                if item["status"] == "success"
+            )
+
+            failed_files = len(results) - successful_files
+
+            total_chunks = sum(
+                item.get("chunks_added", 0)
+                for item in results
+            )
+
+            st.session_state["upload_result"] = {
+                "total_files": len(uploaded_files),
+                "successful_files": successful_files,
+                "failed_files": failed_files,
+                "total_chunks": total_chunks,
+                "results": results,
+            }
+
+            # Clear previous answer because the
+            # knowledge base has changed.
+            st.session_state.pop(
+                "query_result",
+                None,
+            )
+
+            if successful_files > 0:
+
+                st.success(
+                    "Documents processed successfully."
                 )
 
-                if response.status_code == 200:
+            if failed_files > 0:
 
-                    result = response.json()
-
-                    st.session_state["upload_result"] = result
-
-                    # Clear previous query because the
-                    # knowledge base has changed.
-                    st.session_state.pop(
-                        "query_result",
-                        None
-                    )
-
-                    st.success(
-                        "Documents processed successfully."
-                    )
-
-                else:
-
-                    st.error(
-                        f"Document processing failed: {response.text}"
-                    )
-
-            except requests.exceptions.ConnectionError:
-
-                st.error(
-                    "Unable to connect to FastAPI backend. "
-                    "Please make sure the backend server is running."
-                )
-
-            except Exception as exc:
-
-                st.error(
-                    f"An unexpected error occurred: {exc}"
+                st.warning(
+                    f"{failed_files} document(s) could not be processed."
                 )
 
 
@@ -389,10 +718,15 @@ if "upload_result" in st.session_state:
     result = st.session_state["upload_result"]
 
     st.markdown(
-        """<div class="section-title">Knowledge Base</div>
-<div class="section-description">
-Documents processed and indexed for semantic retrieval.
-</div>""",
+        """
+        <div class="section-title">
+            Knowledge Base
+        </div>
+
+        <div class="section-description">
+            Documents processed and indexed for semantic retrieval.
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -414,13 +748,15 @@ Documents processed and indexed for semantic retrieval.
     )
 
     st.markdown(
-        f"""<div class="info-card">
-<b>Vector Database</b><br>
-<span style="color:#64748b;">
-{result.get("total_chunks", 0)}
-document chunks indexed in ChromaDB
-</span>
-</div>""",
+        f"""
+        <div class="info-card">
+            <b>Vector Database</b><br>
+            <span style="color:#64748b;">
+                {result.get("total_chunks", 0)}
+                document chunks indexed in ChromaDB
+            </span>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -429,14 +765,14 @@ document chunks indexed in ChromaDB
         if item["status"] == "success":
 
             st.success(
-                f"✓ {item['filename']}  •  "
+                f"✓ {item['filename']} • "
                 f"{item['chunks_added']} chunks indexed"
             )
 
         else:
 
             st.error(
-                f"✕ {item['filename']}  •  "
+                f"✕ {item['filename']} • "
                 f"{item.get('error', 'Unknown error')}"
             )
 
@@ -446,11 +782,16 @@ document chunks indexed in ChromaDB
 # =========================================================
 
 st.markdown(
-    """<div class="section-title">Ask Your Documents</div>
-<div class="section-description">
-Ask questions and receive answers grounded in the indexed
-document evidence.
-</div>""",
+    """
+    <div class="section-title">
+        Ask Your Documents
+    </div>
+
+    <div class="section-description">
+        Ask questions and receive answers grounded in the
+        indexed document evidence.
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -491,52 +832,68 @@ if ask_question:
 
     else:
 
-        payload = {
-            "question": question.strip(),
-            "top_k": top_k,
-        }
-
         with st.spinner(
             "Searching documents and generating an evidence-grounded answer..."
         ):
 
             try:
 
-                response = requests.post(
-                    f"{API_URL}/query",
-                    json=payload,
-                    timeout=120,
+                evidence_package = rag.get_evidence_package(
+                    query=question.strip(),
+                    top_k=top_k,
                 )
 
-                if response.status_code == 200:
+                evidence = evidence_package.get(
+                    "evidence",
+                    [],
+                )
 
-                    result = response.json()
+                conflict_ledger = evidence_package.get(
+                    "conflict_ledger",
+                    {},
+                )
 
-                    st.session_state["query_result"] = result
-
-                elif response.status_code == 404:
+                if not evidence:
 
                     st.warning(
                         "No indexed evidence found. "
                         "Please process your documents first."
                     )
 
-                else:
-
-                    st.error(
-                        f"Query failed: {response.text}"
+                    st.session_state.pop(
+                        "query_result",
+                        None,
                     )
 
-            except requests.exceptions.ConnectionError:
+                else:
 
-                st.error(
-                    "Unable to connect to FastAPI backend."
-                )
+                    context = build_context(
+                        evidence
+                    )
+
+                    answer = generate_answer(
+                        question=question.strip(),
+                        context=context,
+                        conflict_ledger=conflict_ledger,
+                    )
+
+                    citations = build_citations(
+                        evidence
+                    )
+
+                    result = {
+                        "answer": answer,
+                        "evidence": evidence,
+                        "citations": citations,
+                        "conflict_ledger": conflict_ledger,
+                    }
+
+                    st.session_state["query_result"] = result
 
             except Exception as exc:
 
                 st.error(
-                    f"An unexpected error occurred: {exc}"
+                    f"Query failed: {exc}"
                 )
 
 
@@ -549,7 +906,11 @@ if "query_result" in st.session_state:
     result = st.session_state["query_result"]
 
     st.markdown(
-        """<div class="section-title">Answer</div>""",
+        """
+        <div class="section-title">
+            Answer
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -558,17 +919,17 @@ if "query_result" in st.session_state:
         "No answer generated.",
     )
 
-    # Remove accidental consecutive duplicate
-    # evidence citations such as [E1] [E1].
     answer = clean_duplicate_citations(
         answer
     )
 
     st.markdown(
-        '<div class="answer-card">'
-        '<div class="answer-label">'
-        'Evidence-Grounded Response'
-        '</div>',
+        """
+        <div class="answer-card">
+            <div class="answer-label">
+                Evidence-Grounded Response
+            </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -585,11 +946,17 @@ if "query_result" in st.session_state:
     # =====================================================
 
     st.markdown(
-        """<div class="section-title">Retrieved Evidence</div>
-<div class="section-description">
-The most relevant document chunks retrieved for this question
-after semantic retrieval and Cross-Encoder reranking.
-</div>""",
+        """
+        <div class="section-title">
+            Retrieved Evidence
+        </div>
+
+        <div class="section-description">
+            The most relevant document chunks retrieved for
+            this question after semantic retrieval and
+            Cross-Encoder reranking.
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -631,7 +998,7 @@ after semantic retrieval and Cross-Encoder reranking.
         )
 
         with st.expander(
-            f"📌 {evidence_id}  |  {source}  |  Page {page}"
+            f"📌 {evidence_id} | {source} | Page {page}"
         ):
 
             st.write(
@@ -648,32 +1015,48 @@ after semantic retrieval and Cross-Encoder reranking.
             col1, col2, col3 = st.columns(3)
 
             col1.markdown(
-                f"""<div class="score-card">
-<div class="score-label">Rerank Score</div>
-<div class="score-value">
-{rerank_score if rerank_score is not None else "N/A"}
-</div>
-</div>""",
+                f"""
+                <div class="score-card">
+                    <div class="score-label">
+                        Rerank Score
+                    </div>
+                    <div class="score-value">
+                        {
+                            rerank_score
+                            if rerank_score is not None
+                            else "N/A"
+                        }
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
 
             col2.markdown(
-                f"""<div class="score-card">
-<div class="score-label">Vector Distance</div>
-<div class="score-value">
-{distance}
-</div>
-</div>""",
+                f"""
+                <div class="score-card">
+                    <div class="score-label">
+                        Vector Distance
+                    </div>
+                    <div class="score-value">
+                        {distance}
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
 
             col3.markdown(
-                f"""<div class="score-card">
-<div class="score-label">Extraction</div>
-<div class="score-value">
-{str(extraction_method).upper()}
-</div>
-</div>""",
+                f"""
+                <div class="score-card">
+                    <div class="score-label">
+                        Extraction
+                    </div>
+                    <div class="score-value">
+                        {str(extraction_method).upper()}
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
 
@@ -683,7 +1066,11 @@ after semantic retrieval and Cross-Encoder reranking.
     # =====================================================
 
     st.markdown(
-        """<div class="section-title">Sources & Citations</div>""",
+        """
+        <div class="section-title">
+            Sources & Citations
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -710,16 +1097,21 @@ after semantic retrieval and Cross-Encoder reranking.
         )
 
         st.markdown(
-            f"""<div class="info-card">
-<b>[{citation_id}]</b>
-<span style="color:#475569;">
-{citation_text}
-</span>
-<br>
-<span style="font-size:12px;color:#94a3b8;">
-Extraction: {extraction_method}
-</span>
-</div>""",
+            f"""
+            <div class="info-card">
+                <b>[{citation_id}]</b>
+                <span style="color:#475569;">
+                    {citation_text}
+                </span>
+                <br>
+                <span style="
+                    font-size:12px;
+                    color:#94a3b8;
+                ">
+                    Extraction: {extraction_method}
+                </span>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
@@ -796,8 +1188,8 @@ Extraction: {extraction_method}
                             str,
                             statement_1.get(
                                 "values",
-                                []
-                            )
+                                [],
+                            ),
                         )
                     )
                 )
@@ -840,8 +1232,8 @@ Extraction: {extraction_method}
                             str,
                             statement_2.get(
                                 "values",
-                                []
-                            )
+                                [],
+                            ),
                         )
                     )
                 )
@@ -893,10 +1285,12 @@ Extraction: {extraction_method}
 # =========================================================
 
 st.markdown(
-    """<div class="footer">
-AI Document Intelligence Copilot
-&nbsp;•&nbsp;
-RAG + ChromaDB + Cross-Encoder Reranking + FastAPI
-</div>""",
+    """
+    <div class="footer">
+        AI Document Intelligence Copilot
+        &nbsp;•&nbsp;
+        RAG + ChromaDB + Cross-Encoder Reranking + OCR + LLM
+    </div>
+    """,
     unsafe_allow_html=True,
 )

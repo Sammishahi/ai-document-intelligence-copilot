@@ -1,6 +1,3 @@
-fastapi
-uvicorn[standard]
-python-multipart
 pydantic-settings
 pypdf
 
@@ -13,6 +10,6 @@ chromadb
 sentence-transformers
 
 numpy
-requests
 streamlit
 python-dotenv
+langchain-groq
