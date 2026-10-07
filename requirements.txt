@@ -1,5 +1,8 @@
 pydantic-settings
 pypdf
+PyMuPDF
+pytesseract
+Pillow
 
 langchain-core
 langchain-text-splitters
