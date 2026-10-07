@@ -5,6 +5,10 @@ import tempfile
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from core.rag import DocumentRAG
 
