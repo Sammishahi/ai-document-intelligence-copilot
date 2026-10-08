@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 
 import fitz
 import pytesseract
@@ -10,15 +11,20 @@ class OCRProcessor:
     Handles OCR extraction from scanned PDF pages.
     """
 
-    def __init__(
-        self,
-        tesseract_path: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        dpi_scale: float = 2.0,
-    ):
-        self.tesseract_path = tesseract_path
-        self.dpi_scale = dpi_scale
+def __init__(self, tesseract_path=None, dpi_scale=2.0):
+    self.dpi_scale = dpi_scale
 
-        pytesseract.pytesseract.tesseract_cmd = self.tesseract_path
+    if tesseract_path:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+    else:
+        tesseract_cmd = shutil.which("tesseract")
+
+        if not tesseract_cmd:
+            raise RuntimeError(
+                "Tesseract OCR is not installed or not available in PATH."
+            )
+
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
     def extract_page_text(self, page) -> str:
         """

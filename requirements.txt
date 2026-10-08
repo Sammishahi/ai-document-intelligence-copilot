@@ -3,7 +3,7 @@ pypdf
 PyMuPDF
 pytesseract
 Pillow
-
+torchvision
 langchain-core
 langchain-text-splitters
 langchain-huggingface
